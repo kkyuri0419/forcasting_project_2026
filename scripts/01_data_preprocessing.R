@@ -33,3 +33,6 @@ diff_seasonal <- diff(diff_log_data, lag=12)
 df_s_g <- autoplot(diff_seasonal)
 df_s_g
 ggsave("graphs/data_diff_seasonal_visualization.png", plot = df_s_g, width = 8, height = 5, dpi = 300)
+
+save(log_data, diff_log_data, diff_seasonal, file="data_preprocessed/processed_data.RData")
+
