@@ -30,7 +30,7 @@ data <- ts(rawData$OBS_VALUE,start = c(2005,1), frequency = 12)
 frequency(data)
 tsp(data)
 
-# Section1 - Understanding the Data -----------------------------------------------------------
+# Understanding the Data -----------------------------------------------------------
 
 # Visualize the data
 g <- autoplot(data) +
@@ -66,17 +66,3 @@ ggsave("graphs/seasonal_EV_registration_visualization.png", plot = season_plot, 
 # Observation 5
 # Also, the seasonal fluctuations are more pronounced in the later years, which further supports the observation of increasing variance over time.
 # This means that we may need to apply a log transformation to stabilize the variance before modeling.
-
-
-
-# Section2 - Preprocessing -----------------------------------------------------------
-
-# differentiate the data to remove the trend
-diff_data <- diff(data)
-autoplot(diff_data)
-
-#Although the series has been differenced, the variance is still increasing over time, 
-#so it is not suitable for modeling yet — a log transformation is needed
-log_data <- log(data)
-diff_log <- diff(log_data)
-autoplot(diff_log)
