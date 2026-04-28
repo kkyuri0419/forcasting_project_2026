@@ -3,7 +3,7 @@ source("scripts/setup.R")
 
 # 00_Load the Data -----------------------------------------------------------
 
-rawData <- read.csv("data_raw/Filtered_data.csv", header = TRUE)
+rawData <- read.csv("scripts/Filtered_data.csv", header = TRUE)
 #ncol(rawData)
 #nrow(rawData)
 #colnames(rawData)
@@ -36,3 +36,23 @@ ggsave("graphs/data_diff_seasonal_visualization.png", plot = df_s_g, width = 8, 
 
 save(log_data, diff_log_data, diff_seasonal, file="data_preprocessed/processed_data.RData")
 
+
+# Statistical Validation
+
+# Let's verify if "diff_seasonal" is truly stationary (required for the project report (Lecture 1))
+
+library(tseries)
+
+# Testing the log-diff series (Non-seasonal diff)
+adf_log_diff <- adf.test(diff_log_data, alternative = "stationary") #p-value smaller than printed p-value
+print(adf_log_diff)
+
+# Testing the seasonal-diff series
+adf_seasonal <- adf.test(diff_seasonal, alternative = "stationary") #p-value smaller than printed p-value
+print(adf_seasonal)
+
+# If p-value < 0.01, we are ready to model!
+# Observation: Seasonal differencing helps when simple differencing leaves remains of seasonal patterns.
+
+
+# COMMIT: Added ADF tests to statistically validate stationarity of log-diff and seasonal-diff series (per Lecture 1 requirements).

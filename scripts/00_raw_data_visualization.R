@@ -1,6 +1,7 @@
-install.packages("knitr")
+#install.packages("knitr")
 library(knitr)
-knitr::opts_knit$set(root.dir = "/Users/yurikim/Desktop/ForcastingProject/forecasting-project-2026")
+#knitr::opts_knit$set(root.dir = "/Users/yurikim/Desktop/ForcastingProject/forecasting-project-2026")
+knitr::opts_knit$set(root.dir = "forecasting-project-2026.Rproj")
 knitr::opts_chunk$set(message = FALSE)
 
 rm(list = ls())
@@ -21,7 +22,8 @@ library(mFilter)
 library(ggplot2)
 
 # Load the data
-rawData <- read.csv("data_raw/Filtered_data.csv", header = TRUE)
+#rawData <- read.csv("data_raw/Filtered_data.csv", header = TRUE)
+rawData <- read.csv("scripts/Filtered_data.csv", header = TRUE)
 ncol(rawData)
 nrow(rawData)
 colnames(rawData)
@@ -66,3 +68,38 @@ ggsave("graphs/seasonal_EV_registration_visualization.png", plot = season_plot, 
 # Observation 5
 # Also, the seasonal fluctuations are more pronounced in the later years, which further supports the observation of increasing variance over time.
 # This means that we may need to apply a log transformation to stabilize the variance before modeling.
+
+# Stationary transformations
+
+# Applying log transformation to stabilize the variance
+log_data <- log(data)
+
+# Visualizing the log-series
+g_log <- autoplot(log_data) +
+  ggtitle("Log-Transformed Swiss EV Registrations") +
+  theme_minimal()
+g_log
+
+# Test for stationarity on the log-level (Null Hypothesis (H0): The series has a unit root (is non-stationary))
+adf_log <- adf.test(log_data, alternative = "stationary")
+print(adf_log)
+# Interpretation: If p-value > 0.05, we need to difference the data.
+
+# Applying first difference to remove the trend (This represents the monthly growth rate in log terms)
+diff_log_data <- diff(log_data)
+
+# Final Stationarity Check
+adf_final <- adf.test(diff_log_data, alternative = "stationary")
+print(adf_final)
+# "p-value smaller than printed p-value"; correct
+
+# Visualizing the stationary series
+g_stationary <- autoplot(diff_log_data) +
+  ggtitle("Stationary Series (Monthly Change in Log-Registrations)") +
+  theme_minimal()
+g_stationary
+
+# Saving the diagnostic plots
+ggsave("graphs/stationary_series.png", plot = g_stationary, width = 8, height = 5)
+
+# Commit: Added log transformation and first-differencing to ensure stationarity (validated with ADF test).
