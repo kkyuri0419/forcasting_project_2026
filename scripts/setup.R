@@ -1,12 +1,12 @@
 
 # Load necessary libraries
 
-#install.packages("tseries")  
-#install.packages("xts") 
-#install.packages("forecast") 
-#install.packages("tsbox")    
-#install.packages("seasonal")
-#install.packages("mFilter")
+install.packages("tseries")
+install.packages("xts")
+install.packages("forecast")
+install.packages("tsbox")
+install.packages("seasonal")
+install.packages("mFilter")
 
 library(tseries)
 library(xts)
