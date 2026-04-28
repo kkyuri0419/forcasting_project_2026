@@ -4,12 +4,15 @@
 #모델 fitting
 
 
-source("scripts/setup.R")
-load("processed_data.RData")
+#source("scripts/setup.R")
+#load("processed_data.RData")
+load("data_preprocessed/processed_data.RData")
 
 # 00_Load the Data -----------------------------------------------------------
 
-rawData <- read.csv("data_raw/Filtered_data.csv", header = TRUE)
+#rawData <- read.csv("data_raw/Filtered_data.csv", header = TRUE)
+rawData <- read.csv("scripts/Filtered_data.csv", header = TRUE)
+
 #ncol(rawData)
 #nrow(rawData)
 #colnames(rawData)
@@ -38,9 +41,6 @@ acc_snaive
 
 #write.csv(acc_naive, "results/acc_naive.csv")
 #write.csv(acc_snaive, "results/acc_snaive.csv")
-
-
-
 
 # 02_ARIMA Model ----------------------------------------------------------
 
@@ -79,9 +79,6 @@ acc_arima_110 <- accuracy(fc_110_raw, test)
 acc_arima_011
 acc_arima_111
 acc_arima_110
-
-
-
 
 
 # Saving the results ------------------------------------------------------
