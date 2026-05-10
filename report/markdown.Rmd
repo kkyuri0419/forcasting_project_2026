@@ -1,0 +1,559 @@
+---
+title: "forecasting-project-markdown"
+author: "yurikim"
+date: "2026-05-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 00. Pre-requisites
+First, we will visualize the raw data to understand its characteristics and identify any patterns or trends that may be present. This step is crucial for selecting appropriate modeling techniques and ensuring that our forecasts are accurate.
+
+### Load the necessary libraries
+```{r}
+#install.packages("tseries")
+#install.packages("xts")
+#install.packages("forecast")
+#install.packages("tsbox")
+#install.packages("seasonal")
+#install.packages("mFilter")
+library(tseries)
+library(xts)
+library(forecast) 
+library(tsbox)    
+library(seasonal)
+library(mFilter)
+library(ggplot2)
+library(zoo)
+library(gridExtra)
+library(grid)
+library(tidyverse)
+library(quantmod)
+library(dplyr)
+library(lubridate)
+library(zoo)
+```
+
+### Load the data
+The data is loaded from a CSV file and converted into a time series object. We will also check the dimensions and column names of the raw data to ensure it has been loaded correctly.
+```{r}
+rawData <- read.csv("../data_raw/Filtered_data.csv", header = TRUE)
+ncol(rawData)
+nrow(rawData)
+colnames(rawData)
+```
+
+The loaded data is then converted into a time series object with a specified start time and frequency. We will also check the frequency and time series properties of the data to understand its structure.
+```{r}
+data <- ts(rawData$OBS_VALUE,start = c(2005,1), frequency = 12)
+frequency(data)
+tsp(data)
+```
+
+## 01. Raw Data Visualization
+
+### Visualize the data
+The data is visualized using the `autoplot` function from the `ggplot2` package, which provides a clear and informative plot of the time series. The plot includes a title, y-axis label, and a minimal theme for better aesthetics. We will also save the plot as a PNG file for future reference.
+```{r}
+g <- autoplot(data) +
+  ggtitle("Swiss EV Registration") +
+  ylab("No. of EV") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +  # Remove legend title
+  theme(axis.title.y = element_blank())  # Remove vertical axis label
+g
+#ggsave("../graphs/EV_registration_visualization.png", plot = g, width = 8, height = 5, dpi = 300)
+```
+**There are a few observations we can make from the graph:**<br>
+
+- **Observation 1**: The graph shows a clear upward trend in the number of EV registrations after around year 2020. This means that the data is not stationary (non stationary mean), and we will need to apply transformations such as differencing to make it suitable for modeling.<br>
+
+- **Observation 2**: Another feature is the graph fluctuates more in the later years, which suggests that the variance is not constant over time (non stationary variance). This means that we may need to apply a transformation such as a log transformation to stabilize the variance before modeling.<br>
+<br>
+Now, to see if the data has a seasonal pattern, we can create a seasonal plot using the `ggseasonplot` function. This will help us visualize any recurring patterns or cycles in the data that occur at regular intervals.
+```{r}
+season_plot <- ggseasonplot(data)
+season_plot
+#ggsave("../graphs/seasonal_EV_registration_visualization.png", plot = season_plot, width = 8, height = 5, dpi = 300)
+```
+**From the seasonal graph, we can make a few more observations:**<br>
+
+- **Observation 3**: There is a clear strong seasonal pattern in the data, with peaks in June, Sep, Dec repeatly. This means that we will need to account for seasonality in our modeling, such as using seasonal differencing.<br>
+
+- **Observation 4**: Also, again, the seasonal fluctuations are more pronounced in the later years, which further supports the observation of increasing variance over time. This means that we may need to apply a log transformation to stabilize the variance before modeling, same as Observation 2.<br>
+
+## 02. Data Preprocessing
+Before we can apply any forecasting models, we need to preprocess the data to ensure that it is suitable for modeling. This involves applying transformations to stabilize the variance, such as a log transformation, and applying differencing to remove any trends or seasonality in the data. We will also visualize the transformed data to confirm that the transformations have been effective in making the data more stationary and suitable for modeling. and finally check the stationarity of the transformed data using statistical tests such as the Augmented Dickey-Fuller (ADF) test to confirm that the data is now stationary and ready for modeling.
+
+### Log Transformation
+As we observed from Observation 2 and 4, the variance of the data is not constant over time. Thus firstly we applied log transformation to scale down the large data level and stabilize the variance. After applying the log transformation, we will visualize the log-transformed data to confirm that the variance has been stabilized and that the data is now more suitable for modeling.
+
+```{r log transformation}
+log_data <- log(data)
+log_g <- autoplot(log_data)
+log_g
+```
+
+After the log transformation, the variability appears more consistent across the entire time period, suggesting the log transformation effectively compresses the scale of the data, particularly in the later years where the values are higher, resulting in a more homoscedastic series that is better suited for modeling.<br>
+
+```{r log transformation visualization}
+ts_log_data <- ts(log_data, start = c(2005,1), frequency = 12)
+season_plot <- ggseasonplot(ts_log_data)
+season_plot
+```
+
+However, the upwards trend and the seasonality are still present in the log-transformed data, which indicates that further transformations are needed to achieve stationarity. To address this, we will apply differencing to remove the trend and seasonality from the data.
+
+### Seasonal Differencing
+
+Seasonal differencing with a lag of 12 was performed to remove the annual pattern inherent in the monthly data. This step accounts for recurring seasonal effects by comparing each observation to its value in the same month of the previous year.
+```{r seasonal differencing}
+diff_seasonal <- diff(log_data, lag=12)
+df_s_g <- autoplot(diff_seasonal)
+df_s_g
+```
+
+After applying seasonal differencing (lag = 12), the series appears to fluctuate around a relatively constant mean with no clear upward or downward trend. This suggests that the seasonal differencing has largely removed both the seasonal component.<br>
+To further examine wether additional differencing is required, we used the autocorrelation function (ACF) plot of the seasonally differenced series. 
+```{r acf plot}
+acf_values <- acf(diff_seasonal, lag.max = 36, plot = FALSE)
+
+n <- length(diff_seasonal)
+ci <- 1.96 / sqrt(n)
+
+plot(
+  acf_values$lag * frequency(diff_seasonal),
+  acf_values$acf,
+  type = "h",
+  xlab = "Lag",
+  ylab = "ACF"
+)
+abline(h = 0)
+abline(h = c(-ci, ci), lty = 2)
+```
+
+After applying seasonal differencing (lag = 12), the autocorrelation function still exhibits a slow decay, with significant correlations persisting across multiple lags. This pattern indicates that the series remains non-stationary, suggesting the presence of a remaining trend component.
+
+### Regular Differencing
+
+Therefore, a first-order regular differencing was applied to remove the remaining trend and achieve stationarity.
+```{r regular differencing}
+final_diff_data <- diff(diff_seasonal)
+df_g <- autoplot(final_diff_data)
+df_g
+```
+
+And once again, we checked the ACF plot to confirm that the series is now stationary.
+```{r acf plot after regular differencing}
+acf_values <- acf(final_diff_data, lag.max = 36, plot = FALSE)
+
+n <- length(final_diff_data)
+ci <- 1.96 / sqrt(n)
+
+plot(
+  acf_values$lag * frequency(final_diff_data),
+  acf_values$acf,
+  type = "h",
+  xlab = "Lag",
+  ylab = "ACF"
+)
+abline(h = 0)
+abline(h = c(-ci, ci), lty = 2)
+```
+
+After applying log transformation, seasonal differencing with lag 12, and first-order regular differencing, the transformed series no longer shows a clear trend or repeated seasonal pattern. The ACF also suggests that most autocorrelations fall within the confidence bounds, indicating that the mean structure has been largely stabilized.
+
+However, the time plot of the transformed series shows that the early period still has noticeably higher volatility than the later period. Therefore, the transformed series may not be strictly stationary in terms of variance. For this reason, the series should be interpreted as approximately stationary rather than perfectly stationary, and the remaining volatility instability should be acknowledged as a limitation of the SARIMA modeling approach.
+
+As shown in the ACF plot, there is a significant negative spike at lag 1, suggesting a possible non-seasonal MA(1) component. In addition, a significant spike appears at the seasonal lag 12, which suggests a possible seasonal MA(1) component. Therefore, q=1 and Q=1 were considered as reasonable candidate values for the SARIMA specifications.
+
+Furthermore, the partial autocorrelation function (PACF) was examined To determine a suitable value for p, using the transformed stationary series.
+
+```{r pacf plot}
+pacf_values <- pacf(final_diff_data, lag.max = 36, plot = FALSE)
+
+n <- length(final_diff_data)
+ci <- 1.96 / sqrt(n)
+
+plot(
+  pacf_values$lag * frequency(final_diff_data),
+  pacf_values$acf,
+  type = "h",
+  xlab = "Lag",
+  ylab = "PACF"
+)
+abline(h = 0)
+abline(h = c(-ci, ci), lty = 2)
+```
+
+The PACF plot shows a significant spike at lag 1, suggesting a possible non-seasonal AR(1) component. Since some additional early-lag partial autocorrelations are also significant, p=1 and p=2 were considered as candidate values. In addition, the significant spike around the seasonal lag 12 suggests a possible seasonal AR(1) component, so P=1 was considered as a candidate for the SARIMA specifications.
+
+## 02. Modeling
+
+### SARIMA Model
+
+SARIMA was used because the EV registration data are observed at a monthly frequency and show evidence of annual seasonality. The significant spikes around lag 12 in the ACF and PACF also suggest that the series contains seasonal dependence, which cannot be fully captured by a standard non-seasonal ARIMA model. Therefore, SARIMA is more suitable for modelling both non-seasonal and seasonal patterns in the data.
+
+As discussed above, the ACF suggests q=1 as a reasonable non-seasonal MA candidate, while the PACF suggests p=1 or p=2 as reasonable non-seasonal AR candidates. Since first-order differencing was applied to achieve stationarity, the differencing order was set to d=1.<br>
+
+For the seasonal components, the significant spikes around lag 12 in the ACF and PACF suggest possible seasonal MA(1) and AR(1) components, respectively. Therefore, Q=1 and P=1 were considered as candidate seasonal orders. Since seasonal differencing was also applied to remove annual seasonality, D=1 was used. Based on these candidate values, two SARIMA specifications were estimated and compared to identify the most appropriate model.
+
+```{r sarima model}
+# Split the data into training and testing sets
+train <- window(data, end=c(2024,12))
+test  <- window(data, start=c(2025,1))
+
+# Apply log transformation to stabilize the variance
+log_train <- log(train)
+log_test  <- log(test)
+
+
+# Fit the first candidate SARIMA model on the training data
+# Non-seasonal order: p = 1, d = 1, q = 1
+# Seasonal order: P = 1, D = 1, Q = 1
+# Seasonal period: 12, because the data are monthly
+sarima_1 <- Arima(
+  log_train,
+  order = c(1, 1, 1),
+  seasonal = c(1, 1, 1)
+)
+
+# Fit the second candidate SARIMA model on the training data
+# This model uses p = 2 instead of p = 1,
+# because the PACF suggested p = 1 or p = 2 as possible candidates
+sarima_2 <- Arima(
+  log_train,
+  order = c(2, 1, 1),
+  seasonal = c(1, 1, 1)
+)
+
+
+# Forecast the test period
+# h should be equal to the length of the test set
+h <- length(log_test)
+
+forecast_1 <- forecast(sarima_1, h = h)
+forecast_2 <- forecast(sarima_2, h = h)
+
+# Compare forecast accuracy on the log scale
+accuracy_1 <- accuracy(forecast_1, log_test)
+accuracy_2 <- accuracy(forecast_2, log_test)
+
+# Create a comparison table using AIC, BIC, RMSE, and MAE
+model_comparison <- data.frame(
+  Model = c(
+    "SARIMA(1,1,1)(1,1,1)[12]",
+    "SARIMA(2,1,1)(1,1,1)[12]"
+  ),
+  AIC = c(AIC(sarima_1), AIC(sarima_2)),
+  BIC = c(BIC(sarima_1), BIC(sarima_2)),
+  RMSE = c(accuracy_1["Test set", "RMSE"], accuracy_2["Test set", "RMSE"]),
+  MAE = c(accuracy_1["Test set", "MAE"], accuracy_2["Test set", "MAE"])
+)
+
+# Sort models by test RMSE
+model_comparison <- model_comparison[order(model_comparison$RMSE), ]
+
+# Display the model comparison table
+model_comparison
+
+```
+
+SARIMA(1,1,1)(1,1,1)[12] was selected as the preferred model because it achieved lower AIC, BIC, RMSE, and MAE than the alternative SARIMA(2,1,1)(1,1,1)[12] specification. This suggests that adding a second non-seasonal AR term did not improve the model’s fit or forecast accuracy.
+
+### Baseline Model
+
+To evaluate whether the SARIMA model improves forecasting performance beyond simple benchmarks, it was compared with three baseline models: the mean forecast, the naive forecast, and the seasonal naive forecast. The seasonal naive model is particularly relevant because the data are monthly and may contain annual seasonal patterns. Each model was fitted using the training data and evaluated on the same test set using RMSE and MAE.
+
+```{r baseline model}}
+
+# Set forecast horizon equal to the length of the test set
+h <- length(log_test)
+
+# -------------------------------
+# 1. Baseline models
+# -------------------------------
+
+# Mean forecast: uses the average of the training data
+mean_fc <- meanf(log_train, h = h)
+
+# Naive forecast: uses the last observed value as the forecast
+naive_fc <- naive(log_train, h = h)
+
+# Seasonal naive forecast: uses the value from the same month in the previous year
+snaive_fc <- snaive(log_train, h = h)
+
+# -------------------------------
+# 2. Final SARIMA model
+# -------------------------------
+
+# Fit the selected SARIMA model on the training data
+# SARIMA(1,1,1)(1,1,1)[12]
+sarima_final <- Arima(
+  log_train,
+  order = c(1, 1, 1),
+  seasonal = c(1, 1, 1)
+)
+
+# Forecast the test period
+sarima_fc <- forecast(sarima_final, h = h)
+
+# -------------------------------
+# 3. Compare forecast accuracy
+# -------------------------------
+
+# Calculate accuracy measures on the test set
+mean_acc   <- accuracy(mean_fc, log_test)
+naive_acc  <- accuracy(naive_fc, log_test)
+snaive_acc <- accuracy(snaive_fc, log_test)
+sarima_acc <- accuracy(sarima_fc, log_test)
+
+# Create comparison table
+baseline_comparison <- data.frame(
+  Model = c(
+    "Mean forecast",
+    "Naive forecast",
+    "Seasonal naive forecast",
+    "SARIMA(2,1,1)(0,1,1)[12]"
+  ),
+  RMSE = c(
+    mean_acc["Test set", "RMSE"],
+    naive_acc["Test set", "RMSE"],
+    snaive_acc["Test set", "RMSE"],
+    sarima_acc["Test set", "RMSE"]
+  ),
+  MAE = c(
+    mean_acc["Test set", "MAE"],
+    naive_acc["Test set", "MAE"],
+    snaive_acc["Test set", "MAE"],
+    sarima_acc["Test set", "MAE"]
+  )
+)
+
+# Sort by RMSE
+baseline_comparison <- baseline_comparison[order(baseline_comparison$RMSE), ]
+
+# Display the comparison table
+baseline_comparison
+```
+
+The selected SARIMA model was compared with three baseline forecasting methods: mean forecast, naive forecast, and seasonal naive forecast. The results show that SARIMA(1,1,1)(1,1,1)[12] achieved the lowest RMSE and MAE among all models. In particular, it outperformed the seasonal naive benchmark, which is a strong baseline for monthly data with annual seasonality. This suggests that the SARIMA model captures both the short-term dynamics and the seasonal structure of the EV registration series more effectively than the baseline methods.
+
+## Residual diagnostics
+Residual diagnostics were conducted to assess whether the selected SARIMA model adequately captured the autocorrelation structure of the series.
+
+```{r residual diagnostics}
+# Residual diagnostics for the selected SARIMA model
+checkresiduals(sarima_final)
+```
+
+The residuals fluctuate around zero without a clear remaining trend or seasonal pattern. The residual ACF shows that most autocorrelations lie within the 95% confidence bounds. In addition, the Ljung-Box test produced a p-value of 0.2771, which is greater than 0.05. Therefore, we fail to reject the null hypothesis of no autocorrelation in the residuals. This suggests that the residuals are approximately white noise and that the SARIMA model provides an adequate fit.
+
+
+## Exogenous variable extension
+
+To examine whether external factors improve the forecast, an extended SARIMA model with exogenous regressors was also considered. Oil price was used as a potential explanatory variable because higher oil costs may affect incentives for electric vehicle adoption. The model was estimated using the same SARIMA structure, but with the exogenous variable included through the xreg term. Its forecasting performance was then compared with the best SARIMA model using RMSE and MAE.
+
+```{r exogenous variable extension}
+
+oil_raw <- read.csv("../data_raw/oil_price(2005-2025).csv", header = TRUE)
+
+# Create the time series object for oil
+oil_ts <- ts(oil_raw$MCOILBRENTEU, start = c(2005, 1), frequency = 12)
+
+# Transformation: Log and Difference (same as we did with the EVs)
+log_oil <- log(oil_ts)
+
+# Split into train and test sets
+oil_train <- window(log_oil, end = c(2024, 12))
+oil_test  <- window(log_oil, start = c(2025, 1))
+
+h <- length(log_test)
+
+# Fit SARIMAX model
+sarimax_oil <- Arima(
+  log_train,
+  order = c(1, 1, 1),
+  seasonal = c(1, 1, 1),
+  xreg = oil_train
+)
+
+# Forecast using future/test-period xreg values
+sarimax_oil_fc <- forecast(
+  sarimax_oil,
+  h = h,
+  xreg = oil_test
+)
+
+# Existing SARIMA forecast accuracy
+sarima_fc <- forecast(sarima_final, h = h)
+sarima_acc <- accuracy(sarima_fc, log_test)
+
+# SARIMAX forecast accuracy
+sarimax_acc <- accuracy(sarimax_oil_fc, log_test)
+
+comparison <- data.frame(
+  Model = c(
+    "SARIMA(1,1,1)(1,1,1)[12]",
+    "SARIMAX with fuel price"
+  ),
+  RMSE = c(
+    sarima_acc["Test set", "RMSE"],
+    sarimax_acc["Test set", "RMSE"]
+  ),
+  MAE = c(
+    sarima_acc["Test set", "MAE"],
+    sarimax_acc["Test set", "MAE"]
+  ),
+  AIC = c(
+    AIC(sarima_final),
+    AIC(sarimax_oil)
+  ),
+  BIC = c(
+    BIC(sarima_final),
+    BIC(sarimax_oil)
+  )
+)
+
+comparison
+```
+
+As an extension, fuel price was included as an exogenous variable in a SARIMAX model to test whether external economic information could improve forecast accuracy. However, the SARIMAX model produced higher RMSE and MAE than the selected SARIMA model. Its AIC and BIC values were also higher, indicating that the additional exogenous variable did not improve the balance between model fit and complexity. Therefore, fuel price was not retained in the final forecasting model, and SARIMA(1,1,1)(1,1,1)[12] was selected as the final specification.
+
+
+## Final Forecasts
+Finally, the selected SARIMA model was used to generate forecasts for the test period. The forecasts were then transformed back to the original scale by applying the exponential function, since the model was fitted on log-transformed data.
+
+### Model fitting with the entire dataset
+To generate forecasts for the future beyond the test period, the SARIMA model was re-fitted
+
+```{r final model fitting}
+sarima_final_full <- Arima(
+  log(data),
+  order = c(1, 1, 1),
+  seasonal = c(1, 1, 1)
+)
+```
+
+### Future Forecasts
+The fitted model was then used to forecast the next 12 months of EV registrations
+```{r future forecasts}
+# Forecast 12 months ahead
+sarima_forecast <- forecast(sarima_final_full, h = 12)
+
+# Plot forecast on log scale
+plot(sarima_forecast)
+```
+
+### Reverse transformation to original scale
+To interpret the forecasts in terms of the original number of EV registrations, the forecasts were transformed back to the original scale by applying the exponential function to the forecasted log values.
+```{r reverse transformation}
+# Back-transform the forecast from log scale to original scale
+sarima_forecast_original <- sarima_forecast
+
+sarima_forecast_original$x    <- exp(sarima_forecast$x)
+sarima_forecast_original$mean <- exp(sarima_forecast$mean)
+sarima_forecast_original$lower <- exp(sarima_forecast$lower)
+sarima_forecast_original$upper <- exp(sarima_forecast$upper)
+
+# Plot forecast on the original EV registration scale
+plot(
+  sarima_forecast_original,
+  main = "Forecasts of EV Registrations from SARIMA(1,1,1)(1,1,1)[12]",
+  ylab = "EV registrations",
+  xlab = "Year"
+)
+
+dev.copy(
+  png,
+  filename = "../graphs/sarima_forecast_ev_registrations.png",
+  width = 1000,
+  height = 700
+)
+```
+
+### Forecast Table
+The forecasted values for the next 12 months were also tabulated to provide a clear summary of the expected EV registrations in the future period.
+```{r forecast table}
+  forecast_table <- data.frame(
+  Month = as.yearmon(time(sarima_forecast_original$mean)),
+  Forecast = round(as.numeric(sarima_forecast_original$mean)),
+  Lower_80 = round(as.numeric(sarima_forecast_original$lower[, "80%"])),
+  Upper_80 = round(as.numeric(sarima_forecast_original$upper[, "80%"])),
+  Lower_95 = round(as.numeric(sarima_forecast_original$lower[, "95%"])),
+  Upper_95 = round(as.numeric(sarima_forecast_original$upper[, "95%"]))
+)
+
+grid.table(forecast_table)
+
+# Copy the current table output to PNG
+dev.copy(
+  png,
+  filename = "../graphs/forecast_table.png",
+  width = 1200,
+  height = 500
+)
+
+dev.off()
+
+```
+
+
+### Forecast Comparison
+```{r forecast comparison}
+library(zoo)
+
+# Historical annual total EV registrations
+ev_annual <- aggregate(data, nfrequency = 1, FUN = sum)
+
+# Forecasted annual total EV registrations
+forecast_annual <- aggregate(sarima_forecast_original$mean, nfrequency = 1, FUN = sum)
+
+# Combine historical and forecasted annual totals
+annual_comparison <- data.frame(
+  Year = c(time(ev_annual), time(forecast_annual)),
+  EV_Registrations = c(as.numeric(ev_annual), as.numeric(forecast_annual)),
+  Type = c(
+    rep("Historical", length(ev_annual)),
+    rep("Forecast", length(forecast_annual))
+  )
+)
+
+# Calculate annual growth rate
+annual_comparison$Growth_Rate <- c(
+  NA,
+  diff(annual_comparison$EV_Registrations) /
+    head(annual_comparison$EV_Registrations, -1) * 100
+)
+
+annual_comparison
+```
+
+```{r visualization of growth rates}
+annual_ev_plot <- ggplot(annual_comparison, aes(x = Year, y = EV_Registrations, color = Type)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Annual EV Registrations in Switzerland",
+    x = "Year",
+    y = "EV registrations"
+  ) +
+  theme_minimal()
+
+# Show the plot on screen
+annual_ev_plot
+
+# Save the plot as PNG
+ggsave(
+  filename = "../graphs/annual_ev_registrations.png",
+  plot = annual_ev_plot,
+  width = 10,
+  height = 6,
+  dpi = 300
+)
+```
+
+
