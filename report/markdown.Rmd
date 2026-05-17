@@ -1,19 +1,31 @@
 ---
-title: "forecasting-project-markdown"
-author: "yurikim"
+title: "Forcasting Swiss EV Registration"
+author: "Yuri Kim and Laura Lio"
 date: "2026-05-05"
-output: html_document
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: true
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
 ---
+
+## Motivation, main findings and structure of the report
+
+The rapid growth of electric vehicles in Switzerland creates new challenges for energy and transport infrastructure planning. For the Swiss Federal Office of Energy (SFOE), monthly EV registration forecasts are useful because future charging infrastructure needs depend on how quickly the number of battery electric vehicles increases. A forecast of EV registrations can therefore provide an early signal of future charging demand and help support investment decisions for public charging stations.
+
+Our analysis suggests that EV registrations are likely to continue increasing in 2026. This result is mainly explained by the strong upward trend observed in recent years and by recurring seasonal patterns in the monthly registration data. In particular, the forecast indicates that some months are likely to experience higher registration levels than others, which is relevant for short-term infrastructure planning. Although oil prices were considered as a potential external factor, they did not improve the forecast performance in our model. This suggests that the future path of EV registrations is better captured by historical growth and seasonality than by oil price movements.
+
+Therefore, our recommendation is that SFOE should increase its planned charging infrastructure investment for 2026. The forecast indicates that EV registrations are likely to continue rising and may reach new peak levels, which implies higher pressure on public charging capacity. The temporary slowdown observed in 2024 should not be treated as evidence of a lasting decline in EV adoption. Instead, SFOE should use the forecast as a signal to bring forward infrastructure investment and ensure that charging capacity expands in line with expected EV growth.
+
+The remainder of this report is organized as follows. First, we describe the EV registration data and inspect its main time-series patterns. We then prepare the data through transformations and stationarity checks. Next, we estimate and compare several forecasting models, including basedline, SARIMA, and ARIMA approaches. Finally, we evaluate the models using forecast accuracy measures and discuss the implications of the results for EV charging infrastructure planning in Switzerland.
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-```
 
-## 00. Pre-requisites
-First, we will visualize the raw data to understand its characteristics and identify any patterns or trends that may be present. This step is crucial for selecting appropriate modeling techniques and ensuring that our forecasts are accurate.
-
-### Load the necessary libraries
-```{r}
 #install.packages("tseries")
 #install.packages("xts")
 #install.packages("forecast")
@@ -35,29 +47,29 @@ library(quantmod)
 library(dplyr)
 library(lubridate)
 library(zoo)
+# clean workspace
+rm(list = ls())
 ```
 
-### Load the data
-The data is loaded from a CSV file and converted into a time series object. We will also check the dimensions and column names of the raw data to ensure it has been loaded correctly.
-```{r}
-rawData <- read.csv("../data_raw/Filtered_data.csv", header = TRUE)
-ncol(rawData)
-nrow(rawData)
-colnames(rawData)
-```
 
-The loaded data is then converted into a time series object with a specified start time and frequency. We will also check the frequency and time series properties of the data to understand its structure.
-```{r}
-data <- ts(rawData$OBS_VALUE,start = c(2005,1), frequency = 12)
-frequency(data)
-tsp(data)
-```
 
 ## 01. Raw Data Visualization
 
+```{r data, warning=FALSE, message=FALSE}
+rawData <- read.csv("../data_raw/Filtered_data.csv", header = TRUE)
+#ncol(rawData)
+#nrow(rawData)
+#colnames(rawData)
+
+data <- ts(rawData$OBS_VALUE,start = c(2005,1), frequency = 12)
+#frequency(data)
+#tsp(data)
+```
+
 ### Visualize the data
-The data is visualized using the `autoplot` function from the `ggplot2` package, which provides a clear and informative plot of the time series. The plot includes a title, y-axis label, and a minimal theme for better aesthetics. We will also save the plot as a PNG file for future reference.
-```{r}
+For our analysis, we forecast monthly electric vehicle registrations in Switzerland. We clearly observe a strong upward trend in EV registrations, especially in recent years, reflecting the rapid adoption of electric vehicles in Switzerland. In addition, several important observations can be made from the time series data.
+
+```{r data visualization}
 g <- autoplot(data) +
   ggtitle("Swiss EV Registration") +
   ylab("No. of EV") +
@@ -73,7 +85,7 @@ g
 
 - **Observation 2**: Another feature is the graph fluctuates more in the later years, which suggests that the variance is not constant over time (non stationary variance). This means that we may need to apply a transformation such as a log transformation to stabilize the variance before modeling.<br>
 <br>
-Now, to see if the data has a seasonal pattern, we can create a seasonal plot using the `ggseasonplot` function. This will help us visualize any recurring patterns or cycles in the data that occur at regular intervals.
+Now, to see if the data has a seasonal pattern, we can create a seasonal plot. This will help us visualize any recurring patterns or cycles in the data that occur at regular intervals.
 ```{r}
 season_plot <- ggseasonplot(data)
 season_plot
@@ -268,7 +280,7 @@ SARIMA(1,1,1)(1,1,1)[12] was selected as the preferred model because it achieved
 
 To evaluate whether the SARIMA model improves forecasting performance beyond simple benchmarks, it was compared with three baseline models: the mean forecast, the naive forecast, and the seasonal naive forecast. The seasonal naive model is particularly relevant because the data are monthly and may contain annual seasonal patterns. Each model was fitted using the training data and evaluated on the same test set using RMSE and MAE.
 
-```{r baseline model}}
+```{r baseline model}
 
 # Set forecast horizon equal to the length of the test set
 h <- length(log_test)
@@ -342,7 +354,7 @@ baseline_comparison
 
 The selected SARIMA model was compared with three baseline forecasting methods: mean forecast, naive forecast, and seasonal naive forecast. The results show that SARIMA(1,1,1)(1,1,1)[12] achieved the lowest RMSE and MAE among all models. In particular, it outperformed the seasonal naive benchmark, which is a strong baseline for monthly data with annual seasonality. This suggests that the SARIMA model captures both the short-term dynamics and the seasonal structure of the EV registration series more effectively than the baseline methods.
 
-## Residual diagnostics
+### Residual diagnostics
 Residual diagnostics were conducted to assess whether the selected SARIMA model adequately captured the autocorrelation structure of the series.
 
 ```{r residual diagnostics}
@@ -353,7 +365,7 @@ checkresiduals(sarima_final)
 The residuals fluctuate around zero without a clear remaining trend or seasonal pattern. The residual ACF shows that most autocorrelations lie within the 95% confidence bounds. In addition, the Ljung-Box test produced a p-value of 0.2771, which is greater than 0.05. Therefore, we fail to reject the null hypothesis of no autocorrelation in the residuals. This suggests that the residuals are approximately white noise and that the SARIMA model provides an adequate fit.
 
 
-## Exogenous variable extension
+## 03. Exogenous variable extension
 
 To examine whether external factors improve the forecast, an extended SARIMA model with exogenous regressors was also considered. Oil price was used as a potential explanatory variable because higher oil costs may affect incentives for electric vehicle adoption. The model was estimated using the same SARIMA structure, but with the exogenous variable included through the xreg term. Its forecasting performance was then compared with the best SARIMA model using RMSE and MAE.
 
@@ -424,7 +436,7 @@ comparison
 As an extension, fuel price was included as an exogenous variable in a SARIMAX model to test whether external economic information could improve forecast accuracy. However, the SARIMAX model produced higher RMSE and MAE than the selected SARIMA model. Its AIC and BIC values were also higher, indicating that the additional exogenous variable did not improve the balance between model fit and complexity. Therefore, fuel price was not retained in the final forecasting model, and SARIMA(1,1,1)(1,1,1)[12] was selected as the final specification.
 
 
-## Final Forecasts
+## 04. Final Forecasts
 Finally, the selected SARIMA model was used to generate forecasts for the test period. The forecasts were then transformed back to the original scale by applying the exponential function, since the model was fitted on log-transformed data.
 
 ### Model fitting with the entire dataset
