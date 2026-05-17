@@ -13,7 +13,7 @@
 
 <meta name="date" content="2026-05-05" />
 
-<title>Forcasting Swiss EV Registration</title>
+<title>Forecasting Swiss EV Registrations</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -1709,7 +1709,7 @@ display: none;
 
 
 
-<h1 class="title toc-ignore">Forcasting Swiss EV Registration</h1>
+<h1 class="title toc-ignore">Forecasting Swiss EV Registrations</h1>
 <h4 class="author">Yuri Kim and Laura Ríos-Quiroz</h4>
 <h4 class="date">2026-05-05</h4>
 
@@ -1740,7 +1740,11 @@ Model</a></li>
 <li><a href="#residual-diagnostics" id="toc-residual-diagnostics">Residual diagnostics</a></li>
 </ul></li>
 <li><a href="#exogenous-variable-extension" id="toc-exogenous-variable-extension">03. Exogenous variable
-extension</a></li>
+extension</a>
+<ul>
+<li><a href="#model-comparison-and-key-insights." id="toc-model-comparison-and-key-insights.">Model Comparison and Key
+Insights.</a></li>
+</ul></li>
 <li><a href="#final-forecasts" id="toc-final-forecasts">04. Final
 Forecasts</a>
 <ul>
@@ -2218,7 +2222,6 @@ estimated using the same SARIMA structure, but with the exogenous
 variable included through the xreg term. Its forecasting performance was
 then compared with the best SARIMA model using RMSE and MAE.</p>
 <pre class="r"><code>#oil_raw &lt;- read.csv(&quot;../data_raw/oil_price(2005-2025).csv&quot;, header = TRUE)
-#oil_raw &lt;- read.csv(&quot;../scripts/oil_price(2005-2025).csv&quot;, header = TRUE)
 oil_raw &lt;- read.csv(&quot;../scripts/oil_price(2005-2025).csv&quot;, header = TRUE)
 # Create the time series object for oil
 oil_ts &lt;- ts(oil_raw$MCOILBRENTEU, start = c(2005, 1), frequency = 12)
@@ -2291,6 +2294,22 @@ also higher, indicating that the additional exogenous variable did not
 improve the balance between model fit and complexity. Therefore, fuel
 price was not retained in the final forecasting model, and
 SARIMA(1,1,1)(1,1,1)[12] was selected as the final specification.</p>
+<div id="model-comparison-and-key-insights." class="section level3">
+<h3>Model Comparison and Key Insights.</h3>
+<p>The comparison above highlights a classic modeling dilemma: does
+adding more variables actually give us a clearer crystal ball? By
+contrasting our standard SARIMA against the oil-inclusive SARIMAX, we
+are looking at two distinct stories told by the metrics:</p>
+<p>Is the extra complexity worth it? Metrics like AIC and BIC help us
+police our own model. They reveal if factoring in fuel prices provides a
+genuine breakthrough in explaining EV adoption trends, or if a simpler,
+endogenous approach is actually more robust against overfitting.</p>
+<p>Does the real world match the math? If the oil price data is truly
+useful, we should see a noticeable drop in the test set’s RMSE and MAE.
+A more accurate SARIMAX would prove that Swiss car buyers are actively
+responding to energy market shocks when making the switch to electric
+mobility.</p>
+</div>
 </div>
 <div id="final-forecasts" class="section level2">
 <h2>04. Final Forecasts</h2>

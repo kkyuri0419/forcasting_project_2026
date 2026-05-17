@@ -1,5 +1,5 @@
 ---
-title: "Forcasting Swiss EV Registration"
+title: "Forecasting Swiss EV Registrations"
 author: "Yuri Kim and Laura Ríos-Quiroz"
 date: "2026-05-05"
 output:
@@ -373,7 +373,6 @@ To examine whether external factors improve the forecast, an extended SARIMA mod
 ```{r exogenous variable extension}
 
 #oil_raw <- read.csv("../data_raw/oil_price(2005-2025).csv", header = TRUE)
-#oil_raw <- read.csv("../scripts/oil_price(2005-2025).csv", header = TRUE)
 oil_raw <- read.csv("../scripts/oil_price(2005-2025).csv", header = TRUE)
 # Create the time series object for oil
 oil_ts <- ts(oil_raw$MCOILBRENTEU, start = c(2005, 1), frequency = 12)
@@ -437,6 +436,12 @@ comparison
 
 As an extension, fuel price was included as an exogenous variable in a SARIMAX model to test whether external economic information could improve forecast accuracy. However, the SARIMAX model produced higher RMSE and MAE than the selected SARIMA model. Its AIC and BIC values were also higher, indicating that the additional exogenous variable did not improve the balance between model fit and complexity. Therefore, fuel price was not retained in the final forecasting model, and SARIMA(1,1,1)(1,1,1)[12] was selected as the final specification.
 
+### Model Comparison and Key Insights.
+The comparison above highlights a classic modeling dilemma: does adding more variables actually give us a clearer crystal ball? By contrasting our standard SARIMA against the oil-inclusive SARIMAX, we are looking at two distinct stories told by the metrics:
+
+Is the extra complexity worth it? Metrics like AIC and BIC help us police our own model. They reveal if factoring in fuel prices provides a genuine breakthrough in explaining EV adoption trends, or if a simpler, endogenous approach is actually more robust against overfitting.
+
+Does the real world match the math? If the oil price data is truly useful, we should see a noticeable drop in the test set's RMSE and MAE. A more accurate SARIMAX would prove that Swiss car buyers are actively responding to energy market shocks when making the switch to electric mobility.
 
 ## 04. Final Forecasts
 Finally, the selected SARIMA model was used to generate forecasts for the test period. The forecasts were then transformed back to the original scale by applying the exponential function, since the model was fitted on log-transformed data.
